@@ -753,28 +753,48 @@
                                         <TextBlock Text="Com base no consumo atual monitorado" Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,3,0,0"/>
                                     </StackPanel>
                                     <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
-                                        <TextBlock Text="TARIFA (R$/kWh)" Style="{StaticResource Label}" HorizontalAlignment="Right"/>
-                                        <TextBox x:Name="EnergyTariff" Width="110" TextAlignment="Right" Margin="0,4,0,0"
-                                                 ToolTip="Informe o valor final da sua conta de luz em reais por kWh."
-                                                 TextChanged="EnergyTariff_TextChanged" LostFocus="EnergyTariff_LostFocus"/>
+                                        <WrapPanel HorizontalAlignment="Right">
+                                            <StackPanel Margin="12,0,0,0">
+                                                <TextBlock Text="TARIFA (R$/kWh)" Style="{StaticResource Label}" HorizontalAlignment="Right"/>
+                                                <TextBox x:Name="EnergyTariff" Width="100" TextAlignment="Right" Margin="0,4,0,0"
+                                                         ToolTip="Valor final da sua conta de luz em reais por kWh."
+                                                         TextChanged="EnergyTariff_TextChanged" LostFocus="EnergyModel_LostFocus"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="12,0,0,0">
+                                                <TextBlock Text="OUTROS (W)" Style="{StaticResource Label}" HorizontalAlignment="Right"/>
+                                                <TextBox x:Name="EnergyOtherPower" Width="82" TextAlignment="Right" Margin="0,4,0,0"
+                                                         ToolTip="Estimativa para placa-mãe, RAM, SSDs, ventoinhas, rede e periféricos."
+                                                         TextChanged="EnergyModel_TextChanged" LostFocus="EnergyModel_LostFocus"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="12,0,0,0">
+                                                <TextBlock Text="EFICIÊNCIA (%)" Style="{StaticResource Label}" HorizontalAlignment="Right"/>
+                                                <TextBox x:Name="EnergyPsuEfficiency" Width="82" TextAlignment="Right" Margin="0,4,0,0"
+                                                         ToolTip="Consulte o selo da fonte: 80 Plus Bronze costuma ficar perto de 85%, Gold perto de 90%."
+                                                         TextChanged="EnergyModel_TextChanged" LostFocus="EnergyModel_LostFocus"/>
+                                            </StackPanel>
+                                        </WrapPanel>
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock x:Name="EnergyCostPower" Text="Aguardando os sensores de CPU e GPU…" Foreground="{DynamicResource Muted}" Margin="0,14,0,12" TextWrapping="Wrap"/>
-                                <UniformGrid Columns="3">
+                                <UniformGrid Columns="4">
                                     <StackPanel>
-                                        <TextBlock Text="POR HORA" Style="{StaticResource Label}"/>
+                                        <TextBlock Text="AGORA (HORA)" Style="{StaticResource Label}"/>
                                         <TextBlock x:Name="EnergyCostHour" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
                                     </StackPanel>
                                     <StackPanel>
-                                        <TextBlock Text="POR DIA" Style="{StaticResource Label}"/>
+                                        <TextBlock Text="HOJE REGISTRADO" Style="{StaticResource Label}"/>
                                         <TextBlock x:Name="EnergyCostDay" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
                                     </StackPanel>
                                     <StackPanel>
-                                        <TextBlock Text="POR MÊS" Style="{StaticResource Label}"/>
+                                        <TextBlock Text="MÊS REGISTRADO" Style="{StaticResource Label}"/>
                                         <TextBlock x:Name="EnergyCostMonth" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
                                     </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="PROJEÇÃO DO MÊS" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EnergyCostProjection" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
+                                    </StackPanel>
                                 </UniformGrid>
-                                <TextBlock Text="Estimativa se o consumo atual ficar constante: 24 h/dia e 30 dias/mês. Ela usa CPU e GPU quando os sensores estão disponíveis; não mede a tomada nem inclui monitor, fonte e outros componentes." Foreground="{DynamicResource Faint}" FontSize="11" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="EnergyTrackingInfo" Text="O histórico começa quando o programa está aberto e os sensores estão ativos." Foreground="{DynamicResource Faint}" FontSize="11" Margin="0,14,0,0" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
                         <ItemsControl x:Name="EnergyCards" ItemTemplate="{StaticResource CardTemplate}"/>

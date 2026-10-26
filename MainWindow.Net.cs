@@ -37,65 +37,147 @@ public partial class MainWindow
 
     private void BtnEnergyRefresh_Click(object sender, RoutedEventArgs e) => RefreshEnergy();
 
+    private DateTime _energyLastSampleUtc;
+    private DateTime _energyLastSaveUtc;
+
     private void EnergyTariff_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateEnergyCost();
+    private void EnergyModel_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateEnergyCost();
 
-    private void EnergyTariff_LostFocus(object sender, RoutedEventArgs e)
+    private void EnergyModel_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (!TryGetEnergyTariff(out var tariff)) return;
+        if (!TryGetEnergyModel(out var tariff, out var otherWatts, out var efficiency)) return;
         _settings.EnergyTariffPerKwh = tariff;
+        _settings.EnergyOtherPowerWatts = otherWatts;
+        _settings.EnergyPsuEfficiency = efficiency;
         try { _settings.Save(); } catch { }
-        EnergyTariff.Text = tariff.ToString("0.00", CultureInfo.GetCultureInfo("pt-BR"));
-    }
 
-    private bool TryGetEnergyTariff(out double tariff)
-    {
-        var text = EnergyTariff.Text.Trim();
         var ptBr = CultureInfo.GetCultureInfo("pt-BR");
-        // Aceita tanto 1,25 (formato brasileiro) quanto 1.25; no pt-BR, "1.25" seria interpretado como 125.
-        bool dotDecimal = text.Contains('.') && !text.Contains(',');
-        bool parsed = dotDecimal
-            ? double.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out tariff)
-            : double.TryParse(text, NumberStyles.Number, ptBr, out tariff)
-              || double.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out tariff);
-        return parsed && double.IsFinite(tariff) && tariff > 0 && tariff <= 100;
+        EnergyTariff.Text = tariff.ToString("0.00", ptBr);
+        EnergyOtherPower.Text = otherWatts.ToString("0.#", ptBr);
+        EnergyPsuEfficiency.Text = (efficiency * 100).ToString("0.#", ptBr);
     }
 
-    /// <summary>Atualiza o custo usando a potência do pacote da CPU e da GPU principal, sem inventar o consumo da tomada.</summary>
-    private void UpdateEnergyCost()
+    private static bool TryParseEnergyNumber(string input, out double value)
     {
-        if (!TryGetEnergyTariff(out var tariff))
-        {
-            EnergyCostPower.Text = "Informe uma tarifa válida entre R$ 0,01 e R$ 100,00 por kWh.";
-            EnergyCostHour.Text = EnergyCostDay.Text = EnergyCostMonth.Text = "—";
-            return;
-        }
+        var text = input.Trim();
+        var ptBr = CultureInfo.GetCultureInfo("pt-BR");
+        // Em pt-BR, "1.25" seria interpretado como 125: trate ponto isolado como decimal.
+        bool dotDecimal = text.Contains('.') && !text.Contains(',');
+        return dotDecimal
+            ? double.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value)
+            : double.TryParse(text, NumberStyles.Number, ptBr, out value)
+              || double.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
+    }
+
+    private bool TryGetEnergyModel(out double tariff, out double otherWatts, out double efficiency)
+    {
+        bool tariffOk = TryParseEnergyNumber(EnergyTariff.Text, out tariff) && double.IsFinite(tariff) && tariff > 0 && tariff <= 100;
+        bool otherOk = TryParseEnergyNumber(EnergyOtherPower.Text, out otherWatts) && double.IsFinite(otherWatts) && otherWatts >= 0 && otherWatts <= 1000;
+        bool efficiencyOk = TryParseEnergyNumber(EnergyPsuEfficiency.Text, out var percent) && double.IsFinite(percent) && percent >= 50 && percent <= 100;
+        efficiency = percent / 100d;
+        return tariffOk && otherOk && efficiencyOk;
+    }
+
+    /// <summary>Estima a potência na tomada: CPU/GPU monitoradas + componentes sem telemetria, corrigidos pela eficiência da fonte.</summary>
+    private bool TryGetEstimatedWallPower(out double wallWatts, out string detail)
+    {
+        wallWatts = 0;
+        detail = "";
+        if (!TryGetEnergyModel(out _, out var otherWatts, out var efficiency)) return false;
 
         var parts = new List<string>();
-        double watts = 0;
+        double internalWatts = otherWatts;
         if (_monitor.CpuPower is float cpu && cpu > 0)
         {
-            watts += cpu;
+            internalWatts += cpu;
             parts.Add($"CPU {cpu:0.#} W");
         }
         if (MainGpuPower() is float gpu && gpu > 0)
         {
-            watts += gpu;
+            internalWatts += gpu;
             parts.Add($"GPU {gpu:0.#} W");
         }
+        if (parts.Count == 0) return false;
 
-        if (parts.Count == 0)
+        parts.Add($"outros {otherWatts:0.#} W");
+        wallWatts = internalWatts / efficiency;
+        detail = string.Join(" + ", parts);
+        return true;
+    }
+
+    /// <summary>Acumula apenas o tempo realmente observado pelo aplicativo; pausas longas não são preenchidas por suposição.</summary>
+    private void TrackEnergyUsage()
+    {
+        var nowUtc = DateTime.UtcNow;
+        if (_energyLastSampleUtc == default)
         {
-            EnergyCostPower.Text = "Aguardando sensores de consumo da CPU ou GPU. Instale o PawnIO e abra o app como administrador para melhorar a leitura da CPU.";
-            EnergyCostHour.Text = EnergyCostDay.Text = EnergyCostMonth.Text = "—";
+            _energyLastSampleUtc = nowUtc;
+            return;
+        }
+
+        double seconds = (nowUtc - _energyLastSampleUtc).TotalSeconds;
+        _energyLastSampleUtc = nowUtc;
+        if (seconds <= 0 || seconds > 10 || !TryGetEstimatedWallPower(out var watts, out _)) return;
+
+        var now = DateTime.Now;
+        var day = _settings.EnergyUsageHistory.FirstOrDefault(x => x.Date.Date == now.Date);
+        if (day == null)
+        {
+            day = new EnergyUsageDay { Date = now.Date };
+            _settings.EnergyUsageHistory.Add(day);
+        }
+        day.Kwh += watts / 1000d * seconds / 3600d;
+        day.SampledHours += seconds / 3600d;
+        _settings.EnergyUsageHistory.RemoveAll(x => x.Date.Date < now.Date.AddDays(-370));
+
+        if (_energyLastSaveUtc == default || (nowUtc - _energyLastSaveUtc).TotalMinutes >= 5)
+        {
+            SaveEnergyUsage();
+            _energyLastSaveUtc = nowUtc;
+        }
+    }
+
+    private void SaveEnergyUsage()
+    {
+        try { _settings.Save(); } catch { }
+    }
+
+    private void UpdateEnergyCost()
+    {
+        if (!TryGetEnergyModel(out var tariff, out _, out _))
+        {
+            EnergyCostPower.Text = "Informe uma tarifa, carga adicional e eficiência válidas.";
+            EnergyCostHour.Text = EnergyCostDay.Text = EnergyCostMonth.Text = EnergyCostProjection.Text = "—";
             return;
         }
 
         var culture = CultureInfo.GetCultureInfo("pt-BR");
-        double hourly = watts / 1000d * tariff;
-        EnergyCostPower.Text = $"Consumo monitorado: {watts:0.#} W ({string.Join(" + ", parts)}) · tarifa de {tariff.ToString("C2", culture)}/kWh";
-        EnergyCostHour.Text = hourly.ToString("C2", culture);
-        EnergyCostDay.Text = (hourly * 24).ToString("C2", culture);
-        EnergyCostMonth.Text = (hourly * 24 * 30).ToString("C2", culture);
+        if (TryGetEstimatedWallPower(out var watts, out var detail))
+        {
+            EnergyCostPower.Text = $"Estimativa na tomada: {watts:0.#} W ({detail}) · tarifa de {tariff.ToString("C2", culture)}/kWh";
+            EnergyCostHour.Text = (watts / 1000d * tariff).ToString("C2", culture);
+        }
+        else
+        {
+            EnergyCostPower.Text = "Aguardando sensores de consumo da CPU ou GPU. Instale o PawnIO e abra o app como administrador para melhorar a leitura da CPU.";
+            EnergyCostHour.Text = "—";
+        }
+
+        var today = DateTime.Today;
+        var monthStart = new DateTime(today.Year, today.Month, 1);
+        var todayUsage = _settings.EnergyUsageHistory.FirstOrDefault(x => x.Date.Date == today);
+        var monthUsage = _settings.EnergyUsageHistory.Where(x => x.Date.Date >= monthStart && x.Date.Date <= today).ToList();
+        double todayKwh = todayUsage?.Kwh ?? 0;
+        double monthKwh = monthUsage.Sum(x => x.Kwh);
+        double sampledHours = monthUsage.Sum(x => x.SampledHours);
+        int daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+        // Média dos dias de calendário já passados: nenhum trecho de 24/7 é inventado.
+        double projectionKwh = today.Day > 0 ? monthKwh / today.Day * daysInMonth : 0;
+
+        EnergyCostDay.Text = (todayKwh * tariff).ToString("C2", culture);
+        EnergyCostMonth.Text = (monthKwh * tariff).ToString("C2", culture);
+        EnergyCostProjection.Text = (projectionKwh * tariff).ToString("C2", culture);
+        EnergyTrackingInfo.Text = $"Registrado neste mês: {monthKwh:0.###} kWh em {sampledHours:0.#} h acompanhadas. A projeção usa a média dos {today.Day} dias já passados, sem supor uso 24 h/dia. Para máxima precisão, compare com um medidor de tomada.";
     }
 
     // ================= Rede =================

@@ -10,6 +10,14 @@ public sealed record BenchRun(DateTime Date, double? Multi, double? Single, bool
 /// <summary>Resultado dos benchmarks de jogo (Test = "gpu", "sim" ou "mem"). Score é usado para a barra do histórico.</summary>
 public sealed record BenchRecord(DateTime Date, string Test, double Score, string Summary);
 
+/// <summary>Energia estimada e tempo efetivamente acompanhado em um dia de calendário.</summary>
+public sealed class EnergyUsageDay
+{
+    public DateTime Date { get; set; }
+    public double Kwh { get; set; }
+    public double SampledHours { get; set; }
+}
+
 /// <summary>Programa extra que abre antes do jogo (ex.: ferramenta de comando/monitoramento) e pode fechar junto com ele.</summary>
 public sealed class HelperProgram
 {
@@ -72,6 +80,11 @@ public sealed class AppSettings
 
     // Energia: tarifa usada para estimar o custo do consumo monitorado (CPU + GPU), em R$/kWh.
     public double EnergyTariffPerKwh { get; set; } = 1.00;
+    /// <summary>Placa-mãe, RAM, discos, ventoinhas, rede e periféricos, que os sensores normalmente não medem.</summary>
+    public double EnergyOtherPowerWatts { get; set; } = 45;
+    /// <summary>Eficiência estimada da fonte (0 a 1), para converter consumo interno em consumo da tomada.</summary>
+    public double EnergyPsuEfficiency { get; set; } = 0.90;
+    public List<EnergyUsageDay> EnergyUsageHistory { get; set; } = new();
 
     // Overlay
     public string OverlayCorner { get; set; } = "TL";

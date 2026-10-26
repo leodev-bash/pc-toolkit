@@ -86,7 +86,10 @@ public partial class MainWindow : Window
 
         // Sensores: a lista começa vazia e é preenchida quando a detecção do hardware termina (LoadHardwareAsync).
         _monitor = new SensorMonitor();
-        EnergyTariff.Text = _settings.EnergyTariffPerKwh.ToString("0.00", CultureInfo.GetCultureInfo("pt-BR"));
+        var ptBr = CultureInfo.GetCultureInfo("pt-BR");
+        EnergyTariff.Text = _settings.EnergyTariffPerKwh.ToString("0.00", ptBr);
+        EnergyOtherPower.Text = _settings.EnergyOtherPowerWatts.ToString("0.#", ptBr);
+        EnergyPsuEfficiency.Text = (_settings.EnergyPsuEfficiency * 100).ToString("0.#", ptBr);
         _view = CollectionViewSource.GetDefaultView(_monitor.Rows);
         _view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SensorRow.Hardware)));
         SensorGrid.ItemsSource = _view;
@@ -109,6 +112,7 @@ public partial class MainWindow : Window
             // por um instante e aparecia como engasgo no 1% low do benchmark.
             if (_gpuBenchActive) return;
             _monitor.Refresh();
+            TrackEnergyUsage();
             if (_monitor.IsOpen) StatusText.Text = $"{_monitor.Rows.Count} sensores · atualizado {DateTime.Now:HH:mm:ss}";
             UpdateStressPanel();
             UpdateGpuLive();
@@ -138,6 +142,7 @@ public partial class MainWindow : Window
             UnregisterHotKey(new System.Windows.Interop.WindowInteropHelper(this).Handle, HotkeyId);
             ShutdownInteg();
             _launchCts?.Cancel();
+            SaveEnergyUsage();
             _monitor.Dispose();
         };
     }
