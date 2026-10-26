@@ -745,6 +745,38 @@
                             <Button x:Name="BtnEnergyRefresh" Style="{StaticResource OutlineButton}" Content="ATUALIZAR" Padding="18,9"
                                     HorizontalAlignment="Right" VerticalAlignment="Top" Click="BtnEnergyRefresh_Click"/>
                         </Grid>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <Grid>
+                                    <StackPanel Margin="0,0,220,0">
+                                        <TextBlock Text="Custo estimado" FontSize="16" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Com base no consumo atual monitorado" Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
+                                        <TextBlock Text="TARIFA (R$/kWh)" Style="{StaticResource Label}" HorizontalAlignment="Right"/>
+                                        <TextBox x:Name="EnergyTariff" Width="110" TextAlignment="Right" Margin="0,4,0,0"
+                                                 ToolTip="Informe o valor final da sua conta de luz em reais por kWh."
+                                                 TextChanged="EnergyTariff_TextChanged" LostFocus="EnergyTariff_LostFocus"/>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock x:Name="EnergyCostPower" Text="Aguardando os sensores de CPU e GPU…" Foreground="{DynamicResource Muted}" Margin="0,14,0,12" TextWrapping="Wrap"/>
+                                <UniformGrid Columns="3">
+                                    <StackPanel>
+                                        <TextBlock Text="POR HORA" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EnergyCostHour" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="POR DIA" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EnergyCostDay" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="POR MÊS" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EnergyCostMonth" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                                <TextBlock Text="Estimativa se o consumo atual ficar constante: 24 h/dia e 30 dias/mês. Ela usa CPU e GPU quando os sensores estão disponíveis; não mede a tomada nem inclui monitor, fonte e outros componentes." Foreground="{DynamicResource Faint}" FontSize="11" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
                         <ItemsControl x:Name="EnergyCards" ItemTemplate="{StaticResource CardTemplate}"/>
                         <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" TextWrapping="Wrap">
                             Os dados vêm do Windows (WMI). Alguns notebooks não informam ciclos de carga ou a capacidade de projeto.

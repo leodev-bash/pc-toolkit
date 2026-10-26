@@ -70,6 +70,9 @@ public sealed class AppSettings
     // Aparência
     public bool LightTheme { get; set; }
 
+    // Energia: tarifa usada para estimar o custo do consumo monitorado (CPU + GPU), em R$/kWh.
+    public double EnergyTariffPerKwh { get; set; } = 1.00;
+
     // Overlay
     public string OverlayCorner { get; set; } = "TL";
     public double OverlayScale { get; set; } = 1.0;

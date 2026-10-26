@@ -1,6 +1,8 @@
 ﻿using System.Windows;
 using System.Windows.Threading;
 
+using System.Globalization;
+
 namespace ResetExplode;
 
 /// <summary>Páginas Energia (bateria e fonte) e Rede (diagnóstico de lag).</summary>
@@ -21,6 +23,7 @@ public partial class MainWindow
             var sensors = _monitor.Rows.ToList();
             var cards = await Task.Run(() => BatteryInfo.Read(sensors));
             EnergyCards.ItemsSource = cards;
+            UpdateEnergyCost();
             bool hasBattery = cards.Count > 1;
             EnergyStatus.Text = (hasBattery ? "Bateria detectada" : "Nenhuma bateria (PC de mesa)") + $" · lido às {DateTime.Now:HH:mm:ss}";
         }
@@ -33,6 +36,67 @@ public partial class MainWindow
     }
 
     private void BtnEnergyRefresh_Click(object sender, RoutedEventArgs e) => RefreshEnergy();
+
+    private void EnergyTariff_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateEnergyCost();
+
+    private void EnergyTariff_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetEnergyTariff(out var tariff)) return;
+        _settings.EnergyTariffPerKwh = tariff;
+        try { _settings.Save(); } catch { }
+        EnergyTariff.Text = tariff.ToString("0.00", CultureInfo.GetCultureInfo("pt-BR"));
+    }
+
+    private bool TryGetEnergyTariff(out double tariff)
+    {
+        var text = EnergyTariff.Text.Trim();
+        var ptBr = CultureInfo.GetCultureInfo("pt-BR");
+        // Aceita tanto 1,25 (formato brasileiro) quanto 1.25; no pt-BR, "1.25" seria interpretado como 125.
+        bool dotDecimal = text.Contains('.') && !text.Contains(',');
+        bool parsed = dotDecimal
+            ? double.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out tariff)
+            : double.TryParse(text, NumberStyles.Number, ptBr, out tariff)
+              || double.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out tariff);
+        return parsed && double.IsFinite(tariff) && tariff > 0 && tariff <= 100;
+    }
+
+    /// <summary>Atualiza o custo usando a potência do pacote da CPU e da GPU principal, sem inventar o consumo da tomada.</summary>
+    private void UpdateEnergyCost()
+    {
+        if (!TryGetEnergyTariff(out var tariff))
+        {
+            EnergyCostPower.Text = "Informe uma tarifa válida entre R$ 0,01 e R$ 100,00 por kWh.";
+            EnergyCostHour.Text = EnergyCostDay.Text = EnergyCostMonth.Text = "—";
+            return;
+        }
+
+        var parts = new List<string>();
+        double watts = 0;
+        if (_monitor.CpuPower is float cpu && cpu > 0)
+        {
+            watts += cpu;
+            parts.Add($"CPU {cpu:0.#} W");
+        }
+        if (MainGpuPower() is float gpu && gpu > 0)
+        {
+            watts += gpu;
+            parts.Add($"GPU {gpu:0.#} W");
+        }
+
+        if (parts.Count == 0)
+        {
+            EnergyCostPower.Text = "Aguardando sensores de consumo da CPU ou GPU. Instale o PawnIO e abra o app como administrador para melhorar a leitura da CPU.";
+            EnergyCostHour.Text = EnergyCostDay.Text = EnergyCostMonth.Text = "—";
+            return;
+        }
+
+        var culture = CultureInfo.GetCultureInfo("pt-BR");
+        double hourly = watts / 1000d * tariff;
+        EnergyCostPower.Text = $"Consumo monitorado: {watts:0.#} W ({string.Join(" + ", parts)}) · tarifa de {tariff.ToString("C2", culture)}/kWh";
+        EnergyCostHour.Text = hourly.ToString("C2", culture);
+        EnergyCostDay.Text = (hourly * 24).ToString("C2", culture);
+        EnergyCostMonth.Text = (hourly * 24 * 30).ToString("C2", culture);
+    }
 
     // ================= Rede =================
 

@@ -86,6 +86,7 @@ public partial class MainWindow : Window
 
         // Sensores: a lista começa vazia e é preenchida quando a detecção do hardware termina (LoadHardwareAsync).
         _monitor = new SensorMonitor();
+        EnergyTariff.Text = _settings.EnergyTariffPerKwh.ToString("0.00", CultureInfo.GetCultureInfo("pt-BR"));
         _view = CollectionViewSource.GetDefaultView(_monitor.Rows);
         _view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SensorRow.Hardware)));
         SensorGrid.ItemsSource = _view;
@@ -116,6 +117,7 @@ public partial class MainWindow : Window
             UpdateBottleneck();
             if (PageBench.IsVisible) UpdateBenchLive();
             if (PageOptimize.IsVisible) UpdateRamStatus();
+            if (PageEnergy.IsVisible) UpdateEnergyCost();
         };
         _timer.Start();
 
