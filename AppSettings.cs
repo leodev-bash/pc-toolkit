@@ -16,6 +16,14 @@ public sealed class EnergyUsageDay
     public DateTime Date { get; set; }
     public double Kwh { get; set; }
     public double SampledHours { get; set; }
+    /// <summary>Processos que mais consumiram CPU nos intervalos em que a energia foi acompanhada.</summary>
+    public List<EnergyProcessUsage> Processes { get; set; } = new();
+}
+
+public sealed class EnergyProcessUsage
+{
+    public string Name { get; set; } = "";
+    public double CpuSeconds { get; set; }
 }
 
 /// <summary>Programa extra que abre antes do jogo (ex.: ferramenta de comando/monitoramento) e pode fechar junto com ele.</summary>
@@ -84,6 +92,8 @@ public sealed class AppSettings
     public double EnergyOtherPowerWatts { get; set; } = 45;
     /// <summary>Eficiência estimada da fonte (0 a 1), para converter consumo interno em consumo da tomada.</summary>
     public double EnergyPsuEfficiency { get; set; } = 0.90;
+    /// <summary>Tempo médio diário de PC ligado usado para projetar o restante do mês.</summary>
+    public double EnergyActiveHoursPerDay { get; set; } = 4;
     public List<EnergyUsageDay> EnergyUsageHistory { get; set; } = new();
 
     // Overlay

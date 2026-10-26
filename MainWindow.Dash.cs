@@ -19,6 +19,7 @@ public partial class MainWindow
     }
     public sealed record DashRingItem(Brush Swatch, string Label, string Value);
     public sealed record DashCheck(string Title, string Detail, bool Ok);
+    public sealed record DashEnergyDay(string Date, string Kwh, string Cost, string TopProcess);
 
     private readonly record struct DashSample(float? CpuT, float? GpuT, float? CpuL, float? GpuL, float? CpuW, float? GpuW);
 
@@ -94,6 +95,7 @@ public partial class MainWindow
     private void DashChart_SizeChanged(object sender, SizeChangedEventArgs e) => DrawDashChart();
     private void DashBench_Click(object sender, RoutedEventArgs e) => NavBench.IsChecked = true;
     private void DashOptimize_Click(object sender, RoutedEventArgs e) => NavOptimize.IsChecked = true;
+    private void DashEnergy_Click(object sender, RoutedEventArgs e) => NavEnergy.IsChecked = true;
 
     private void DashGo_Click(object sender, RoutedEventArgs e)
     {
@@ -107,12 +109,35 @@ public partial class MainWindow
         DrawDashChart();
         UpdateDashComponents();
         UpdateDashRings();
+        UpdateDashEnergy();
         if (full)
         {
             UpdateDashScores();
             ShowEvents();
         }
         if (full || (DateTime.Now - _healthAt).TotalSeconds > 60) UpdateDashHealth();
+    }
+
+    private void UpdateDashEnergy()
+    {
+        var culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+        double tariff = _settings.EnergyTariffPerKwh > 0 ? _settings.EnergyTariffPerKwh : 1;
+        var history = _settings.EnergyUsageHistory ?? new List<EnergyUsageDay>();
+        var monthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        double monthKwh = history.Where(x => x.Date.Date >= monthStart && x.Date.Date <= DateTime.Today).Sum(x => x.Kwh);
+        double hours = history.Where(x => x.Date.Date >= monthStart && x.Date.Date <= DateTime.Today).Sum(x => x.SampledHours);
+        DashEnergyTotal.Text = monthKwh > 0 ? (monthKwh * tariff).ToString("C2", culture) : "—";
+        DashEnergySummary.Text = monthKwh > 0
+            ? $"{monthKwh:0.###} kWh registrados neste mês em {hours:0.#} h acompanhadas"
+            : "Abra a aba Energia e deixe o programa aberto enquanto usa o PC.";
+
+        DashEnergyDays.ItemsSource = Enumerable.Range(0, 7).Select(i => DateTime.Today.AddDays(i - 6)).Select(day =>
+        {
+            var usage = history.FirstOrDefault(x => x.Date.Date == day);
+            var top = usage?.Processes?.OrderByDescending(x => x.CpuSeconds).FirstOrDefault()?.Name ?? "—";
+            return new DashEnergyDay(day.ToString("ddd dd", culture), usage == null ? "—" : $"{usage.Kwh:0.###} kWh",
+                usage == null ? "—" : (usage.Kwh * tariff).ToString("C2", culture), top);
+        }).ToList();
     }
 
     private static string F(float? v, string fmt, string unit) => v is float x ? x.ToString(fmt) + unit : "—";

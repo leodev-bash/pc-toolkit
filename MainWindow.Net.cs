@@ -39,22 +39,27 @@ public partial class MainWindow
 
     private DateTime _energyLastSampleUtc;
     private DateTime _energyLastSaveUtc;
+    private DateTime _energyLastProcessSampleUtc;
+    private readonly Dictionary<int, (string Name, TimeSpan Cpu)> _energyProcessSnapshot = new();
+    private sealed record EnergyHistoryRow(string Date, string Hours, string Kwh, string Cost, string Processes);
 
     private void EnergyTariff_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateEnergyCost();
     private void EnergyModel_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateEnergyCost();
 
     private void EnergyModel_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (!TryGetEnergyModel(out var tariff, out var otherWatts, out var efficiency)) return;
+        if (!TryGetEnergyModel(out var tariff, out var otherWatts, out var efficiency, out var activeHours)) return;
         _settings.EnergyTariffPerKwh = tariff;
         _settings.EnergyOtherPowerWatts = otherWatts;
         _settings.EnergyPsuEfficiency = efficiency;
+        _settings.EnergyActiveHoursPerDay = activeHours;
         try { _settings.Save(); } catch { }
 
         var ptBr = CultureInfo.GetCultureInfo("pt-BR");
         EnergyTariff.Text = tariff.ToString("0.00", ptBr);
         EnergyOtherPower.Text = otherWatts.ToString("0.#", ptBr);
         EnergyPsuEfficiency.Text = (efficiency * 100).ToString("0.#", ptBr);
+        EnergyActiveHours.Text = activeHours.ToString("0.#", ptBr);
     }
 
     private static bool TryParseEnergyNumber(string input, out double value)
@@ -69,13 +74,14 @@ public partial class MainWindow
               || double.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
     }
 
-    private bool TryGetEnergyModel(out double tariff, out double otherWatts, out double efficiency)
+    private bool TryGetEnergyModel(out double tariff, out double otherWatts, out double efficiency, out double activeHours)
     {
         bool tariffOk = TryParseEnergyNumber(EnergyTariff.Text, out tariff) && double.IsFinite(tariff) && tariff > 0 && tariff <= 100;
         bool otherOk = TryParseEnergyNumber(EnergyOtherPower.Text, out otherWatts) && double.IsFinite(otherWatts) && otherWatts >= 0 && otherWatts <= 1000;
         bool efficiencyOk = TryParseEnergyNumber(EnergyPsuEfficiency.Text, out var percent) && double.IsFinite(percent) && percent >= 50 && percent <= 100;
+        bool hoursOk = TryParseEnergyNumber(EnergyActiveHours.Text, out activeHours) && double.IsFinite(activeHours) && activeHours > 0 && activeHours <= 24;
         efficiency = percent / 100d;
-        return tariffOk && otherOk && efficiencyOk;
+        return tariffOk && otherOk && efficiencyOk && hoursOk;
     }
 
     /// <summary>Estima a potência na tomada: CPU/GPU monitoradas + componentes sem telemetria, corrigidos pela eficiência da fonte.</summary>
@@ -83,7 +89,7 @@ public partial class MainWindow
     {
         wallWatts = 0;
         detail = "";
-        if (!TryGetEnergyModel(out _, out var otherWatts, out var efficiency)) return false;
+        if (!TryGetEnergyModel(out _, out var otherWatts, out var efficiency, out _)) return false;
 
         var parts = new List<string>();
         double internalWatts = otherWatts;
@@ -128,6 +134,7 @@ public partial class MainWindow
         }
         day.Kwh += watts / 1000d * seconds / 3600d;
         day.SampledHours += seconds / 3600d;
+        TrackEnergyProcesses(day, now, nowUtc);
         _settings.EnergyUsageHistory.RemoveAll(x => x.Date.Date < now.Date.AddDays(-370));
 
         if (_energyLastSaveUtc == default || (nowUtc - _energyLastSaveUtc).TotalMinutes >= 5)
@@ -142,12 +149,49 @@ public partial class MainWindow
         try { _settings.Save(); } catch { }
     }
 
+    /// <summary>Guarda os processos que realmente gastaram CPU, por diferença de tempo de processador a cada minuto.</summary>
+    private void TrackEnergyProcesses(EnergyUsageDay day, DateTime now, DateTime nowUtc)
+    {
+        if (_energyLastProcessSampleUtc != default && (nowUtc - _energyLastProcessSampleUtc).TotalSeconds < 55) return;
+        _energyLastProcessSampleUtc = nowUtc;
+        var current = new Dictionary<int, (string Name, TimeSpan Cpu)>();
+        var deltas = new List<(string Name, double Seconds)>();
+        foreach (var process in System.Diagnostics.Process.GetProcesses())
+        {
+            try
+            {
+                var sample = (process.ProcessName, process.TotalProcessorTime);
+                current[process.Id] = sample;
+                if (_energyProcessSnapshot.TryGetValue(process.Id, out var previous))
+                {
+                    double seconds = (sample.Item2 - previous.Cpu).TotalSeconds;
+                    if (seconds > 0 && seconds < 300) deltas.Add((sample.ProcessName, seconds));
+                }
+            }
+            catch { }
+            finally { process.Dispose(); }
+        }
+        _energyProcessSnapshot.Clear();
+        foreach (var pair in current) _energyProcessSnapshot[pair.Key] = pair.Value;
+        if (deltas.Count == 0) return;
+
+        day.Processes ??= new List<EnergyProcessUsage>();
+        foreach (var group in deltas.GroupBy(x => x.Name).OrderByDescending(x => x.Sum(x => x.Seconds)).Take(6))
+        {
+            var entry = day.Processes.FirstOrDefault(x => x.Name.Equals(group.Key, StringComparison.OrdinalIgnoreCase));
+            if (entry == null) { entry = new EnergyProcessUsage { Name = group.Key }; day.Processes.Add(entry); }
+            entry.CpuSeconds += group.Sum(x => x.Seconds);
+        }
+        if (day.Processes.Count > 20)
+            day.Processes = day.Processes.OrderByDescending(x => x.CpuSeconds).Take(20).ToList();
+    }
+
     private void UpdateEnergyCost()
     {
-        if (!TryGetEnergyModel(out var tariff, out _, out _))
+        if (!TryGetEnergyModel(out var tariff, out _, out _, out var activeHours))
         {
-            EnergyCostPower.Text = "Informe uma tarifa, carga adicional e eficiência válidas.";
-            EnergyCostHour.Text = EnergyCostDay.Text = EnergyCostMonth.Text = EnergyCostProjection.Text = "—";
+            EnergyCostPower.Text = "Informe tarifa, carga adicional, eficiência e horas ativas válidas.";
+            EnergyCostHour.Text = EnergyCurrentDay.Text = EnergyCurrentMonth.Text = EnergyCostDay.Text = EnergyCostMonth.Text = EnergyCostProjection.Text = "—";
             return;
         }
 
@@ -155,12 +199,15 @@ public partial class MainWindow
         if (TryGetEstimatedWallPower(out var watts, out var detail))
         {
             EnergyCostPower.Text = $"Estimativa na tomada: {watts:0.#} W ({detail}) · tarifa de {tariff.ToString("C2", culture)}/kWh";
-            EnergyCostHour.Text = (watts / 1000d * tariff).ToString("C2", culture);
+            double currentHour = watts / 1000d * tariff;
+            EnergyCostHour.Text = currentHour.ToString("C2", culture);
+            EnergyCurrentDay.Text = (currentHour * 24).ToString("C2", culture);
+            EnergyCurrentMonth.Text = (currentHour * 24 * 30).ToString("C2", culture);
         }
         else
         {
             EnergyCostPower.Text = "Aguardando sensores de consumo da CPU ou GPU. Instale o PawnIO e abra o app como administrador para melhorar a leitura da CPU.";
-            EnergyCostHour.Text = "—";
+            EnergyCostHour.Text = EnergyCurrentDay.Text = EnergyCurrentMonth.Text = "—";
         }
 
         var today = DateTime.Today;
@@ -170,14 +217,32 @@ public partial class MainWindow
         double todayKwh = todayUsage?.Kwh ?? 0;
         double monthKwh = monthUsage.Sum(x => x.Kwh);
         double sampledHours = monthUsage.Sum(x => x.SampledHours);
-        int daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
-        // Média dos dias de calendário já passados: nenhum trecho de 24/7 é inventado.
-        double projectionKwh = today.Day > 0 ? monthKwh / today.Day * daysInMonth : 0;
+        int daysRemaining = DateTime.DaysInMonth(today.Year, today.Month) - today.Day;
+        // Para os dias restantes, usa a potência média de verdade observada e as horas que o usuário informou.
+        // Se ainda não houver histórico, usa a leitura atual como ponto de partida.
+        double avgWatts = sampledHours > 0 ? monthKwh * 1000d / sampledHours : 0;
+        if (avgWatts <= 0 && TryGetEstimatedWallPower(out var currentWatts, out _)) avgWatts = currentWatts;
+        double projectionKwh = monthKwh + avgWatts / 1000d * activeHours * daysRemaining;
 
         EnergyCostDay.Text = (todayKwh * tariff).ToString("C2", culture);
         EnergyCostMonth.Text = (monthKwh * tariff).ToString("C2", culture);
         EnergyCostProjection.Text = (projectionKwh * tariff).ToString("C2", culture);
-        EnergyTrackingInfo.Text = $"Registrado neste mês: {monthKwh:0.###} kWh em {sampledHours:0.#} h acompanhadas. A projeção usa a média dos {today.Day} dias já passados, sem supor uso 24 h/dia. Para máxima precisão, compare com um medidor de tomada.";
+        EnergyTrackingInfo.Text = $"Registrado neste mês: {monthKwh:0.###} kWh em {sampledHours:0.#} h acompanhadas. A previsão soma o já registrado + {daysRemaining} dias × {activeHours:0.#} h/dia na potência média observada ({avgWatts:0.#} W); não supõe uso 24 h/dia.";
+        UpdateEnergyHistory(culture, tariff);
+    }
+
+    private void UpdateEnergyHistory(CultureInfo culture, double tariff)
+    {
+        var rows = _settings.EnergyUsageHistory.OrderByDescending(x => x.Date).Take(30).Select(day =>
+        {
+            var processes = (day.Processes ?? new List<EnergyProcessUsage>()).OrderByDescending(x => x.CpuSeconds).Take(3).ToList();
+            string processText = processes.Count == 0
+                ? "Processos serão identificados após o primeiro minuto de acompanhamento."
+                : "Mais ativos: " + string.Join(", ", processes.Select(x => $"{x.Name} ({x.CpuSeconds / 60d:0.#} min CPU)"));
+            return new EnergyHistoryRow(day.Date.ToString("ddd, dd/MM", culture), $"{day.SampledHours:0.#} h acompanhadas", $"{day.Kwh:0.###} kWh", (day.Kwh * tariff).ToString("C2", culture), processText);
+        }).ToList();
+        EnergyHistory.ItemsSource = rows;
+        EnergyHistoryEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ================= Rede =================

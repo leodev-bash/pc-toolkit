@@ -90,6 +90,7 @@ public partial class MainWindow : Window
         EnergyTariff.Text = _settings.EnergyTariffPerKwh.ToString("0.00", ptBr);
         EnergyOtherPower.Text = _settings.EnergyOtherPowerWatts.ToString("0.#", ptBr);
         EnergyPsuEfficiency.Text = (_settings.EnergyPsuEfficiency * 100).ToString("0.#", ptBr);
+        EnergyActiveHours.Text = _settings.EnergyActiveHoursPerDay.ToString("0.#", ptBr);
         _view = CollectionViewSource.GetDefaultView(_monitor.Rows);
         _view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SensorRow.Hardware)));
         SensorGrid.ItemsSource = _view;

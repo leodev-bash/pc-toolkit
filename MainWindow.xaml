@@ -571,6 +571,38 @@
                                 </DockPanel>
                             </Border>
                         </Grid>
+
+                        <Border Style="{StaticResource CardBorder}" Margin="0,16,0,0" Padding="22,20">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="260"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="ENERGIA · ÚLTIMOS DIAS" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="DashEnergyTotal" Text="—" Style="{StaticResource Hero}" FontFamily="{StaticResource Mono}"/>
+                                    <TextBlock x:Name="DashEnergySummary" Text="Abra a aba Energia para começar a acompanhar." Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    <Button Style="{StaticResource OutlineButton}" Content="VER ENERGIA" Padding="16,8" Margin="0,14,0,0" HorizontalAlignment="Left" Click="DashEnergy_Click"/>
+                                </StackPanel>
+                                <ItemsControl x:Name="DashEnergyDays" Grid.Column="1">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><UniformGrid Columns="7"/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0" Padding="12,4">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Date}" Style="{StaticResource Label}"/>
+                                                    <TextBlock Text="{Binding Cost}" FontFamily="{StaticResource Mono}" FontWeight="SemiBold" Margin="0,5,0,0"/>
+                                                    <TextBlock Text="{Binding Kwh}" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="{Binding TopProcess}" Foreground="{DynamicResource Faint}" FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -772,15 +804,32 @@
                                                          ToolTip="Consulte o selo da fonte: 80 Plus Bronze costuma ficar perto de 85%, Gold perto de 90%."
                                                          TextChanged="EnergyModel_TextChanged" LostFocus="EnergyModel_LostFocus"/>
                                             </StackPanel>
+                                            <StackPanel Margin="12,0,0,0">
+                                                <TextBlock Text="HORAS ATIVAS/DIA" Style="{StaticResource Label}" HorizontalAlignment="Right"/>
+                                                <TextBox x:Name="EnergyActiveHours" Width="92" TextAlignment="Right" Margin="0,4,0,0"
+                                                         ToolTip="Média de horas por dia em que seu PC costuma ficar ligado. Usada só para projetar o restante do mês."
+                                                         TextChanged="EnergyModel_TextChanged" LostFocus="EnergyModel_LostFocus"/>
+                                            </StackPanel>
                                         </WrapPanel>
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock x:Name="EnergyCostPower" Text="Aguardando os sensores de CPU e GPU…" Foreground="{DynamicResource Muted}" Margin="0,14,0,12" TextWrapping="Wrap"/>
-                                <UniformGrid Columns="4">
+                                <UniformGrid Columns="3">
                                     <StackPanel>
                                         <TextBlock Text="AGORA (HORA)" Style="{StaticResource Label}"/>
                                         <TextBlock x:Name="EnergyCostHour" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
                                     </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="PREVISTO HOJE (24 H)" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EnergyCurrentDay" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="PREVISTO MÊS (30 DIAS)" Style="{StaticResource Label}"/>
+                                        <TextBlock x:Name="EnergyCurrentMonth" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                                <Border Height="1" Background="{DynamicResource Line}" Margin="0,16"/>
+                                <UniformGrid Columns="3">
                                     <StackPanel>
                                         <TextBlock Text="HOJE REGISTRADO" Style="{StaticResource Label}"/>
                                         <TextBlock x:Name="EnergyCostDay" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
@@ -790,11 +839,44 @@
                                         <TextBlock x:Name="EnergyCostMonth" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
                                     </StackPanel>
                                     <StackPanel>
-                                        <TextBlock Text="PROJEÇÃO DO MÊS" Style="{StaticResource Label}"/>
+                                        <TextBlock Text="FINAL DO MÊS (SUA MÉDIA)" Style="{StaticResource Label}"/>
                                         <TextBlock x:Name="EnergyCostProjection" Text="—" Style="{StaticResource Big}" Margin="0,3,0,0"/>
                                     </StackPanel>
                                 </UniformGrid>
                                 <TextBlock x:Name="EnergyTrackingInfo" Text="O histórico começa quando o programa está aberto e os sensores estão ativos." Foreground="{DynamicResource Faint}" FontSize="11" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Histórico de energia" FontSize="16" FontWeight="SemiBold"/>
+                                <TextBlock Text="Consumo registrado por dia e processos que mais usaram CPU durante os períodos monitorados." Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,3,0,10" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="EnergyHistoryEmpty" Text="Ainda não há períodos registrados. Deixe o programa aberto enquanto usa o PC." Foreground="{DynamicResource Faint}" Margin="0,6"/>
+                                <ItemsControl x:Name="EnergyHistory">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="150"/>
+                                                        <ColumnDefinition Width="120"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Date}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding Hours}" Foreground="{DynamicResource Muted}" FontSize="11"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="{Binding Cost}" FontFamily="{StaticResource Mono}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding Kwh}" Foreground="{DynamicResource Muted}" FontSize="11"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="{Binding Processes}" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
                         <ItemsControl x:Name="EnergyCards" ItemTemplate="{StaticResource CardTemplate}"/>
