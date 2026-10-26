@@ -40,11 +40,31 @@ public partial class MainWindow
     private DateTime _energyLastSampleUtc;
     private DateTime _energyLastSaveUtc;
     private DateTime _energyLastProcessSampleUtc;
+    private bool _updatingEnergyStartup;
     private readonly Dictionary<int, (string Name, TimeSpan Cpu)> _energyProcessSnapshot = new();
     private sealed record EnergyHistoryRow(string Date, string Hours, string Kwh, string Cost, string Processes);
 
     private void EnergyTariff_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateEnergyCost();
     private void EnergyModel_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateEnergyCost();
+
+    private void EnergyStartWithWindows_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_updatingEnergyStartup) return;
+        try
+        {
+            StartupManager.SetEnergyMonitorEnabled(EnergyStartWithWindows.IsChecked == true);
+            EnergyStatus.Text = EnergyStartWithWindows.IsChecked == true
+                ? "Monitoramento de energia configurado para iniciar com o Windows (minimizado)."
+                : "Monitoramento automático ao iniciar o Windows foi desativado.";
+        }
+        catch (Exception ex)
+        {
+            _updatingEnergyStartup = true;
+            EnergyStartWithWindows.IsChecked = StartupManager.IsEnergyMonitorEnabled();
+            _updatingEnergyStartup = false;
+            EnergyStatus.Text = "Não foi possível alterar a inicialização: " + ex.Message;
+        }
+    }
 
     private void EnergyModel_LostFocus(object sender, RoutedEventArgs e)
     {

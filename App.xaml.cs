@@ -32,6 +32,6 @@ public partial class App : Application
             return;
         }
         base.OnStartup(e);
-        new MainWindow().Show();
+        new MainWindow(e.Args.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase))).Show();
     }
 }

@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly SensorMonitor _monitor;
     private readonly DispatcherTimer _timer;
     private readonly ICollectionView _view;
+    private readonly bool _startMinimized;
     private string? _category;   // filtro por chip (null = todos)
     private string _search = ""; // filtro por texto
 
@@ -77,8 +78,9 @@ public partial class MainWindow : Window
     private Brush Muted => (Brush)FindResource("Muted");
     private Brush Card => (Brush)FindResource("Card");
 
-    public MainWindow()
+    public MainWindow(bool startMinimized = false)
     {
+        _startMinimized = startMinimized;
         InitializeComponent();
         ThemeManager.Apply(_settings.LightTheme);
         UpdateThemeButton();
@@ -91,6 +93,9 @@ public partial class MainWindow : Window
         EnergyOtherPower.Text = _settings.EnergyOtherPowerWatts.ToString("0.#", ptBr);
         EnergyPsuEfficiency.Text = (_settings.EnergyPsuEfficiency * 100).ToString("0.#", ptBr);
         EnergyActiveHours.Text = _settings.EnergyActiveHoursPerDay.ToString("0.#", ptBr);
+        _updatingEnergyStartup = true;
+        EnergyStartWithWindows.IsChecked = StartupManager.IsEnergyMonitorEnabled();
+        _updatingEnergyStartup = false;
         _view = CollectionViewSource.GetDefaultView(_monitor.Rows);
         _view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SensorRow.Hardware)));
         SensorGrid.ItemsSource = _view;
@@ -104,7 +109,11 @@ public partial class MainWindow : Window
         UpdateDashboard();
 
         // A janela aparece já; as coletas pesadas (WMI, sensores, GPU) rodam em paralelo fora da thread da janela.
-        Loaded += async (_, _) => await LoadHardwareAsync();
+        Loaded += async (_, _) =>
+        {
+            if (_startMinimized) WindowState = WindowState.Minimized;
+            await LoadHardwareAsync();
+        };
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) =>

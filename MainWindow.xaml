@@ -813,6 +813,8 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Grid>
+                                <CheckBox x:Name="EnergyStartWithWindows" Content="Iniciar com o Windows e continuar monitorando em segundo plano"
+                                          Margin="0,14,0,0" Checked="EnergyStartWithWindows_Changed" Unchecked="EnergyStartWithWindows_Changed"/>
                                 <TextBlock x:Name="EnergyCostPower" Text="Aguardando os sensores de CPU e GPU…" Foreground="{DynamicResource Muted}" Margin="0,14,0,12" TextWrapping="Wrap"/>
                                 <UniformGrid Columns="3">
                                     <StackPanel>

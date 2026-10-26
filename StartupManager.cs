@@ -40,6 +40,7 @@ public static class StartupManager
 {
     private const string RunPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ApprovedPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\";
+    private const string EnergyMonitorName = "RESET EXPLODE Monitor";
     public static string BackupFolder => Path.Combine(AppSettings.Folder, "Startup");
 
     public static List<StartupEntry> List()
@@ -51,6 +52,36 @@ public static class StartupManager
         ReadFolder(list, Environment.GetFolderPath(Environment.SpecialFolder.Startup), false, "Pasta Inicializar · usuário");
         ReadFolder(list, Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup), true, "Pasta Inicializar · todos os usuários");
         return list.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    /// <summary>Inicia o próprio aplicativo minimizado com o Windows para manter o histórico de energia sendo acompanhado.</summary>
+    public static bool IsEnergyMonitorEnabled()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunPath);
+            return key?.GetValue(EnergyMonitorName) is string command && command.Contains("--minimized", StringComparison.OrdinalIgnoreCase)
+                && IsApproved(false, "Run", EnergyMonitorName);
+        }
+        catch { return false; }
+    }
+
+    public static void SetEnergyMonitorEnabled(bool enabled)
+    {
+        using var run = Registry.CurrentUser.CreateSubKey(RunPath);
+        if (enabled)
+        {
+            string exe = Environment.ProcessPath ?? throw new InvalidOperationException("Não foi possível localizar o executável.");
+            run.SetValue(EnergyMonitorName, $"\"{exe}\" --minimized", RegistryValueKind.String);
+            using var approved = Registry.CurrentUser.CreateSubKey(ApprovedPath + "Run");
+            approved.SetValue(EnergyMonitorName, new byte[] { 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+        }
+        else
+        {
+            run.DeleteValue(EnergyMonitorName, throwOnMissingValue: false);
+            using var approved = Registry.CurrentUser.OpenSubKey(ApprovedPath + "Run", writable: true);
+            approved?.DeleteValue(EnergyMonitorName, throwOnMissingValue: false);
+        }
     }
 
     private static void ReadRun(List<StartupEntry> list, RegistryHive hive, RegistryView view, string kind, bool machine, string source)
