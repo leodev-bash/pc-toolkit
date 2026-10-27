@@ -16,6 +16,13 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Any(a => a.Equals("--enable-energy-monitor", StringComparison.OrdinalIgnoreCase)))
+        {
+            StartupManager.SetEnergyMonitorEnabled(true);
+            Shutdown();
+            return;
+        }
+
         bool first;
         try { _single = new Mutex(true, @"Local\ResetExplode.SingleInstance", out first); }
         catch (UnauthorizedAccessException) { first = false; } // criado por outra instância com outro nível de permissão
