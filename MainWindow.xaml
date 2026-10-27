@@ -907,6 +907,50 @@
                         </Grid>
                         <TextBlock x:Name="NetStatus" Text="Pronto. O teste leva cerca de 30 segundos." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,0,0,16"/>
                         <ItemsControl x:Name="NetCards" ItemTemplate="{StaticResource CardTemplate}"/>
+                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <Grid>
+                                    <StackPanel Margin="0,0,300,0">
+                                        <TextBlock Text="Dispositivos na rede local" FontSize="16" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="LanStatus" Text="Procura aparelhos que respondem na sua rede local." Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                        <Button x:Name="BtnRouter" Style="{StaticResource OutlineButton}" Content="ABRIR ROTEADOR" Padding="14,8" Margin="0,0,8,0" Click="BtnRouter_Click"/>
+                                        <Button x:Name="BtnLanScan" Style="{StaticResource PrimaryButton}" Content="PROCURAR" Padding="16,8" Click="BtnLanScan_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" TextWrapping="Wrap" Margin="0,12,0,8">
+                                    O tipo cabo/Wi-Fi de outros aparelhos não é exposto pelo Windows: só o painel autenticado do roteador sabe isso. LIGAR envia Wake-on-LAN, que funciona apenas em aparelhos compatíveis e já configurados para isso.
+                                </TextBlock>
+                                <TextBlock x:Name="LanEmpty" Text="Nenhum dispositivo listado ainda." Foreground="{DynamicResource Faint}" Margin="0,8"/>
+                                <ItemsControl x:Name="LanDevicesList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="0,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="1.6*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{Binding Kind}" Foreground="{DynamicResource Muted}" FontSize="11"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="{Binding Ip}" FontFamily="{StaticResource Mono}"/>
+                                                        <TextBlock Text="{Binding Mac}" Foreground="{DynamicResource Muted}" FontFamily="{StaticResource Mono}" FontSize="11"/>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Connection}" Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0"/>
+                                                    <Button Grid.Column="3" Style="{StaticResource OutlineButton}" Content="LIGAR" Padding="12,7" Tag="{Binding}" Click="BtnWake_Click" IsEnabled="{Binding CanWake}"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
                         <TextBlock Foreground="{DynamicResource Faint}" FontSize="11" TextWrapping="Wrap">
                             O teste envia pacotes de ping ao roteador e aos DNS públicos 1.1.1.1 e 8.8.8.8 e baixa/envia dados de teste do servidor público
                             speed.cloudflare.com (cerca de 100 MB no total). Feche downloads, streaming e jogos antes para um resultado fiel.

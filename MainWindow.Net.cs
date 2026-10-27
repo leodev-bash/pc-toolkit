@@ -270,6 +270,57 @@ public partial class MainWindow
     private CancellationTokenSource? _netCts;
     private bool _netRunning;
     private List<DiskHealthCard>? _lastNet;
+    private CancellationTokenSource? _lanCts;
+    private string? _lanGateway;
+
+    private async void BtnLanScan_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lanCts != null) { _lanCts.Cancel(); return; }
+        _lanCts = new CancellationTokenSource();
+        BtnLanScan.Content = "CANCELAR";
+        BtnRouter.IsEnabled = false;
+        LanStatus.Text = "Procurando dispositivos…";
+        try
+        {
+            var result = await LanDevices.ScanAsync(text => Dispatcher.BeginInvoke(new Action(() => LanStatus.Text = text)), _lanCts.Token);
+            _lanGateway = result.Gateway;
+            LanDevicesList.ItemsSource = result.Devices;
+            LanEmpty.Visibility = result.Devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            LanStatus.Text = $"{result.Devices.Count} dispositivo(s) encontrado(s) · {result.Adapter} · IP {result.LocalIp} · gateway {result.Gateway}";
+        }
+        catch (OperationCanceledException) { LanStatus.Text = "Busca cancelada."; }
+        catch (Exception ex) { LanStatus.Text = "Não foi possível procurar dispositivos: " + ex.Message; }
+        finally
+        {
+            _lanCts.Dispose();
+            _lanCts = null;
+            BtnLanScan.Content = "PROCURAR";
+            BtnRouter.IsEnabled = true;
+        }
+    }
+
+    private async void BtnWake_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: LanDevice device }) return;
+        try
+        {
+            await LanDevices.SendWakeOnLanAsync(device.Mac, _lanGateway);
+            LanStatus.Text = $"Pacote Wake-on-LAN enviado para {device.Name} ({device.Mac}). O aparelho precisa ter Wake-on-LAN habilitado.";
+        }
+        catch (Exception ex) { LanStatus.Text = "Não foi possível enviar Wake-on-LAN: " + ex.Message; }
+    }
+
+    private void BtnRouter_Click(object sender, RoutedEventArgs e)
+    {
+        var gateway = _lanGateway ?? LanDevices.DefaultGateway();
+        if (string.IsNullOrWhiteSpace(gateway)) { LanStatus.Text = "Não foi possível localizar o gateway da rede."; return; }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo($"http://{gateway}") { UseShellExecute = true });
+            LanStatus.Text = $"Página de administração aberta em {gateway}. Entre com as credenciais do proprietário para alterar a senha.";
+        }
+        catch (Exception ex) { LanStatus.Text = "Não foi possível abrir o roteador: " + ex.Message; }
+    }
 
     private async void BtnNetTest_Click(object sender, RoutedEventArgs e)
     {
