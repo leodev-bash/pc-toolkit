@@ -54,34 +54,57 @@ public static class StartupManager
         return list.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
-    /// <summary>Inicia o próprio aplicativo minimizado com o Windows para manter o histórico de energia sendo acompanhado.</summary>
+    /// <summary>Inicia o próprio aplicativo minimizado com o Windows para manter o histórico de energia sendo acompanhado.
+    /// Uma tarefa agendada é usada em vez da chave Run, pois o app precisa iniciar elevado para ler os sensores.</summary>
     public static bool IsEnergyMonitorEnabled()
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(RunPath);
-            return key?.GetValue(EnergyMonitorName) is string command && command.Contains("--minimized", StringComparison.OrdinalIgnoreCase)
-                && IsApproved(false, "Run", EnergyMonitorName);
+            return RunSchtasks("/query", "/tn", EnergyMonitorName) == 0;
         }
         catch { return false; }
     }
 
     public static void SetEnergyMonitorEnabled(bool enabled)
     {
-        using var run = Registry.CurrentUser.CreateSubKey(RunPath);
         if (enabled)
         {
             string exe = Environment.ProcessPath ?? throw new InvalidOperationException("Não foi possível localizar o executável.");
-            run.SetValue(EnergyMonitorName, $"\"{exe}\" --minimized", RegistryValueKind.String);
-            using var approved = Registry.CurrentUser.CreateSubKey(ApprovedPath + "Run");
-            approved.SetValue(EnergyMonitorName, new byte[] { 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+            string user = $"{Environment.UserDomainName}\\{Environment.UserName}";
+            int code = RunSchtasks("/create", "/tn", EnergyMonitorName, "/tr", $"\"{exe}\" --minimized",
+                                    "/sc", "onlogon", "/ru", user, "/rl", "highest", "/it", "/f");
+            if (code != 0) throw new InvalidOperationException("O Agendador de Tarefas recusou a configuração. Abra o app como administrador e tente de novo.");
+            RemoveLegacyEnergyRunEntry();
         }
         else
         {
-            run.DeleteValue(EnergyMonitorName, throwOnMissingValue: false);
-            using var approved = Registry.CurrentUser.OpenSubKey(ApprovedPath + "Run", writable: true);
-            approved?.DeleteValue(EnergyMonitorName, throwOnMissingValue: false);
+            RunSchtasks("/delete", "/tn", EnergyMonitorName, "/f");
+            RemoveLegacyEnergyRunEntry();
         }
+    }
+
+    private static int RunSchtasks(params string[] arguments)
+    {
+        using var p = Process.Start(new ProcessStartInfo
+        {
+            FileName = "schtasks.exe", UseShellExecute = false, CreateNoWindow = true
+        }.WithArguments(arguments)) ?? throw new InvalidOperationException("Não foi possível abrir o Agendador de Tarefas.");
+        p.WaitForExit();
+        return p.ExitCode;
+    }
+
+    private static ProcessStartInfo WithArguments(this ProcessStartInfo start, IEnumerable<string> arguments)
+    {
+        foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        return start;
+    }
+
+    private static void RemoveLegacyEnergyRunEntry()
+    {
+        using var run = Registry.CurrentUser.CreateSubKey(RunPath);
+        run.DeleteValue(EnergyMonitorName, throwOnMissingValue: false);
+        using var approved = Registry.CurrentUser.OpenSubKey(ApprovedPath + "Run", writable: true);
+        approved?.DeleteValue(EnergyMonitorName, throwOnMissingValue: false);
     }
 
     private static void ReadRun(List<StartupEntry> list, RegistryHive hive, RegistryView view, string kind, bool machine, string source)
